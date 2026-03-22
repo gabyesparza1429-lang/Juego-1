@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Saga de los Guardianes de la Física</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        .card-glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- HUD -->
+    <div class="w-full max-w-2xl card-glass rounded-xl p-4 mb-6 sticky top-0 z-10 shadow-2xl">
+        <div class="flex justify-between items-center mb-2">
+            <div>
+                <p class="text-xs text-blue-400 font-bold uppercase tracking-widest">Rango Actual</p>
+                <h2 id="rank-name" class="text-lg font-bold text-white">Recluta de la Academia</h2>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-yellow-400 font-bold uppercase tracking-widest">Experiencia (XP)</p>
+                <h2 id="xp-display" class="text-lg font-bold text-white">0</h2>
+            </div>
+        </div>
+        <div class="w-full bg-slate-700 h-3 rounded-full overflow-hidden">
+            <div id="xp-bar" class="progress-bar h-full bg-gradient-to-r from-blue-500 to-purple-500" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <!-- Game Container -->
+    <div id="game-container" class="w-full max-w-2xl bg-slate-900 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
+        
+        <div class="p-6 bg-slate-800 border-b border-slate-700">
+            <div id="narrative-box" class="italic text-slate-300 mb-4 text-lg text-center">
+                Cargando misión...
+            </div>
+            <div id="challenge-title" class="text-2xl font-bold text-blue-300 text-center">
+                Misión: El Primer Duelo
+            </div>
+        </div>
+
+        <div id="question-area" class="p-6">
+            <p id="question-text" class="text-xl font-medium mb-6 leading-relaxed">
+                ¿Cargando pregunta?
+            </p>
+            <div id="options-container" class="space-y-3"></div>
+        </div>
+
+        <div id="feedback-area" class="hidden p-6 text-center animate-fade-in">
+            <div id="feedback-icon" class="text-5xl mb-4"></div>
+            <h3 id="feedback-title" class="text-2xl font-bold mb-2"></h3>
+            <p id="feedback-text" class="text-slate-300 mb-6"></p>
+            <button onclick="nextStep()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-full transition-all transform hover:scale-105 w-full md:w-auto">
+                Continuar Aventura
+            </button>
+        </div>
+    </div>
+
+    <!-- Win Screen -->
+    <div id="win-screen" class="hidden fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-6 text-center">
+        <div class="text-8xl mb-6">🏆</div>
+        <h1 class="text-4xl font-bold text-yellow-400 mb-4 uppercase tracking-tighter">¡Paladín de las Interacciones!</h1>
+        <p class="text-xl text-slate-300 max-w-md mb-8">Has dominado todas las fuerzas del reino. El equilibrio ha sido restaurado.</p>
+        <button onclick="location.reload()" class="bg-white text-slate-900 font-bold py-3 px-8 rounded-full">Reiniciar Saga</button>
+    </div>
+
+    <!-- Footer Tool for Copying -->
+    <div class="mt-8 w-full max-w-2xl p-4 border-t border-slate-800 flex flex-col items-center">
+        <p class="text-xs text-slate-500 mb-2">¿Problemas con el código? Usa este botón:</p>
+        <button id="copy-btn" onclick="copyCode()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs px-4 py-2 rounded border border-slate-600 transition-colors">
+            Copiar Código del Juego
+        </button>
+        <textarea id="hidden-code" class="sr-only"></textarea>
+        <p id="copy-msg" class="text-green-500 text-xs mt-2 hidden">¡Código copiado al portapapeles!</p>
+    </div>
+
+    <script>
+        const gameData = {
+            levels: [
+                { minXP: 0, name: "Recluta de la Academia", narrative: "El Reino de la Inercia está en peligro. Demuestra que entiendes las fuerzas." },
+                { minXP: 200, name: "Escudero del Dinamómetro", narrative: "¡Has subido de nivel! Ahora portas el Dinamómetro Sagrado." },
+                { minXP: 400, name: "Caballero del Equilibrio", narrative: "Debes dominar el arte del Equilibrio Perfecto para salvar el reino." },
+                { minXP: 600, name: "Paladín de las Interacciones", narrative: "¡Increíble! Posees el conocimiento absoluto." }
+            ],
+            questions: [
+                {
+                    text: "Una fuerza actúa 'sobre' un objeto. Al objeto que realiza la acción lo llamamos 'actor'. ¿Cómo llamamos al que la recibe?",
+                    options: [
+                        { text: "Receptor", isCorrect: true, rationale: "¡Exacto! El receptor es el sistema que recibe la acción." },
+                        { text: "Espectador", isCorrect: false, rationale: "No, el espectador solo mira." }
+                    ],
+                    mission: "Iniciación"
+                },
+                {
+                    text: "Si una piedra levita por magnetismo sin tocar el imán, ¿qué tipo de acción es?",
+                    options: [
+                        { text: "Acción de contacto", isCorrect: false, rationale: "Incorrecto. No se están tocando físicamente." },
+                        { text: "Acción a distancia", isCorrect: true, rationale: "¡Correcto! Las fuerzas magnéticas actúan a través del espacio." }
+                    ],
+                    mission: "El Duelo Invisible"
+                },
+                {
+                    text: "En un Diagrama (DOI), ¿cómo representamos una acción de contacto?",
+                    options: [
+                        { text: "Línea continua ( ———> )", isCorrect: true, rationale: "¡Perfecto! El contacto se une firmemente con una línea sólida." },
+                        { text: "Línea punteada ( - - - > )", isCorrect: false, rationale: "No, las punteadas son para acciones a distancia." }
+                    ],
+                    mission: "Cartografía"
+                },
+                {
+                    text: "¿Cuál es la unidad de medida de la fuerza?",
+                    options: [
+                        { text: "Newton (N)", isCorrect: true, rationale: "¡Correcto! En honor a Sir Isaac Newton." },
+                        { text: "Kilogramo (kg)", isCorrect: false, rationale: "Error: el kg mide la masa, no la fuerza." }
+                    ],
+                    mission: "Medición Sagrada"
+                },
+                {
+                    text: "Si las fuerzas que actúan sobre un objeto son iguales pero en sentidos opuestos, el objeto está en...",
+                    options: [
+                        { text: "Equilibrio", isCorrect: true, rationale: "¡Perfecto! El objeto permanecerá quieto o con velocidad constante." },
+                        { text: "Aceleración", isCorrect: false, rationale: "No, para acelerar se necesita una fuerza neta diferente de cero." }
+                    ],
+                    mission: "El Juicio del Equilibrio"
+                }
+            ]
+        };
+
+        let currentXP = 0;
+        let currentQuestionIndex = 0;
+        const xpPerCorrect = 130;
+        const xpPenalty = 50;
+
+        function updateHUD() {
+            document.getElementById('xp-display').innerText = currentXP;
+            let currentRank = gameData.levels[0];
+            for (let level of gameData.levels) {
+                if (currentXP >= level.minXP) currentRank = level;
+            }
+            document.getElementById('rank-name').innerText = currentRank.name;
+            document.getElementById('narrative-box').innerText = `"${currentRank.narrative}"`;
+            const progress = Math.min((currentXP / 600) * 100, 100);
+            document.getElementById('xp-bar').style.width = `${progress}%`;
+            if (currentXP >= 600) document.getElementById('win-screen').classList.remove('hidden');
+        }
+
+        function loadQuestion() {
+            if (currentQuestionIndex >= gameData.questions.length) {
+                if (currentXP < 600) currentQuestionIndex = 0;
+                else return;
+            }
+            const q = gameData.questions[currentQuestionIndex];
+            document.getElementById('challenge-title').innerText = `Misión: ${q.mission}`;
+            document.getElementById('question-text').innerText = q.text;
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left p-4 rounded-xl border-2 border-slate-700 hover:border-blue-500 hover:bg-slate-800 transition-all text-lg flex items-center group";
+                btn.innerHTML = `<span class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center mr-4 group-hover:bg-blue-600 transition-colors">${index + 1}</span><span>${opt.text}</span>`;
+                btn.onclick = () => handleAnswer(opt);
+                container.appendChild(btn);
+            });
+            document.getElementById('question-area').classList.remove('hidden');
+            document.getElementById('feedback-area').classList.add('hidden');
+        }
+
+        function handleAnswer(option) {
+            const feedbackArea = document.getElementById('feedback-area');
+            const questionArea = document.getElementById('question-area');
+            questionArea.classList.add('hidden');
+            feedbackArea.classList.remove('hidden');
+            if (option.isCorrect) {
+                currentXP += xpPerCorrect;
+                document.getElementById('feedback-icon').innerText = "⭐";
+                document.getElementById('feedback-title').innerText = "¡Victoria!";
+                document.getElementById('feedback-title').className = "text-2xl font-bold mb-2 text-green-400";
+                document.getElementById('feedback-text').innerText = option.rationale;
+            } else {
+                currentXP = Math.max(0, currentXP - xpPenalty);
+                document.getElementById('feedback-icon').innerText = "💀";
+                document.getElementById('feedback-title').innerText = "¡Has fallado!";
+                document.getElementById('feedback-title').className = "text-2xl font-bold mb-2 text-red-400";
+                document.getElementById('feedback-text').innerText = option.rationale + " Pierdes algo de energía.";
+                document.getElementById('game-container').classList.add('shake');
+                setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 500);
+            }
+            updateHUD();
+        }
+
+        function nextStep() {
+            currentQuestionIndex++;
+            loadQuestion();
+        }
+
+        function copyCode() {
+            const code = document.documentElement.outerHTML;
+            const textArea = document.getElementById('hidden-code');
+            textArea.value = code;
+            textArea.select();
+            document.execCommand('copy');
+            
+            const msg = document.getElementById('copy-msg');
+            msg.classList.remove('hidden');
+            setTimeout(() => msg.classList.add('hidden'), 3000);
+        }
+
+        updateHUD();
+        loadQuestion();
+    </script>
+</body>
+</html>
